@@ -355,6 +355,8 @@ async def incident_detail(session: AsyncSession, incident_id: uuid.UUID) -> Inci
             )
         )
     for event in incident.events:
+        if event.event_type == EventType.INCIDENT_CREATED:
+            continue  # already represented by the audit-based "Incident created" entry
         timeline.append(
             TimelineEntry(
                 at=event.created_at,

@@ -55,6 +55,7 @@ _REDIRECT_PARAMS = {
     "u",
 }
 
+
 class UrlValidationError(ValueError):
     """The input cannot be analyzed as an http(s) URL."""
 

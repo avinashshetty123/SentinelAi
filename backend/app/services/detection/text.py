@@ -117,8 +117,9 @@ def normalize_text(raw: str) -> NormalizedText:
     mixed = find_mixed_script_tokens(cleaned)
     if mixed:
         # Fold lookalike letters to Latin inside mixed-script words so keyword rules still match them.
-        cleaned = re.sub(r"\w{3,}", lambda m: m.group(0).translate(CONFUSABLES) if m.group(0) in mixed
-                         else m.group(0), cleaned)
+        cleaned = re.sub(
+            r"\w{3,}", lambda m: m.group(0).translate(CONFUSABLES) if m.group(0) in mixed else m.group(0), cleaned
+        )
     text = unicodedata.normalize("NFKC", cleaned)
     text = "".join(ch for ch in text if ch in "\n\t" or unicodedata.category(ch)[0] != "C")
     text = _WS_RE.sub(" ", text)

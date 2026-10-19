@@ -81,6 +81,9 @@ export function FindingItem({ finding }: { finding: Finding }) {
         <Badge tone="neutral" title="Points this finding contributed after caps and diminishing returns">
           +{finding.points.toFixed(finding.points % 1 ? 1 : 0)} pts
         </Badge>
+        {finding.points === 0 && finding.weight > 0 && (
+          <Badge tone="neutral" title="This category already reached its cap, so this finding adds no further points">cap reached</Badge>
+        )}
         {finding.match_count && finding.match_count > 1 ? <Badge>×{finding.match_count} matches</Badge> : null}
         {finding.corroborated_by?.includes("llm") && (
           <Badge tone="accent" title="An AI signal referenced the same evidence category">
@@ -128,8 +131,8 @@ export function ScoreBreakdown({ breakdown, score }: { breakdown: ScoreCategory[
 }
 
 export function ScanResultView({ result }: { result: ScanResult }) {
-  const scored = result.findings.filter((f) => f.points > 0 || f.source === "llm");
-  const info = result.findings.filter((f) => f.points === 0 && f.source !== "llm");
+  const scored = result.findings.filter((f) => f.weight > 0 || f.source === "llm");
+  const info = result.findings.filter((f) => f.weight === 0 && f.source !== "llm");
   return (
     <div className="flex flex-col gap-5" aria-live="polite">
       <Card>

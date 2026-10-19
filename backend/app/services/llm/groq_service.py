@@ -116,30 +116,57 @@ class GroqService:
         started = time.perf_counter()
         # Overall deadline covers SDK retries so a user never waits indefinitely.
         deadline = self.settings.groq_timeout_seconds * (self.settings.groq_max_retries + 1) + 2
-        try:
-            response = await asyncio.wait_for(
-                self._get_client().chat.completions.create(
-                    model=model,
-                    messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {"name": schema_name, "strict": True, "schema": json_schema},
-                    },
-                    temperature=0.2,
-                    max_completion_tokens=self.settings.groq_max_completion_tokens,
-                    reasoning_effort=self.settings.groq_reasoning_effort,
-                    include_reasoning=False,
-                ),
-                timeout=deadline,
-            )
-        except (TimeoutError, groq.APITimeoutError):
-            return self._fail(operation, "timeout", started)
-        except groq.RateLimitError:
-            return self._fail(operation, "rate_limited", started)
-        except (groq.AuthenticationError, groq.PermissionDeniedError):
-            return self._fail(operation, "auth_error", started)
-        except (groq.APIConnectionError, groq.APIStatusError, groq.APIError):
-            return self._fail(operation, "provider_error", started)
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        strict_format = {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "strict": True, "schema": json_schema},
+        }
+        # Fallback when constrained decoding fails (Groq 400 `json_validate_failed`, observed intermittently):
+        # one retry in JSON-object mode with the schema stated in the prompt. Output is still Pydantic-validated.
+        fallback_messages = [
+            {
+                "role": "system",
+                "content": f"{system}\n\nReturn ONLY a JSON object matching this JSON Schema:\n"
+                f"{json.dumps(json_schema)}",
+            },
+            {"role": "user", "content": user},
+        ]
+        attempts: list[tuple[list[dict[str, str]], dict[str, Any]]] = [
+            (messages, strict_format),
+            (fallback_messages, {"type": "json_object"}),
+        ]
+        response: Any = None
+        for index, (msgs, response_format) in enumerate(attempts):
+            try:
+                response = await asyncio.wait_for(
+                    self._get_client().chat.completions.create(
+                        model=model,
+                        messages=msgs,
+                        response_format=response_format,
+                        temperature=0.2,
+                        max_completion_tokens=self.settings.groq_max_completion_tokens,
+                        reasoning_effort=self.settings.groq_reasoning_effort,
+                        include_reasoning=False,
+                    ),
+                    timeout=deadline,
+                )
+                break
+            except (TimeoutError, groq.APITimeoutError):
+                return self._fail(operation, "timeout", started)
+            except groq.RateLimitError:
+                return self._fail(operation, "rate_limited", started, "rate_limit_exceeded")
+            except (groq.AuthenticationError, groq.PermissionDeniedError):
+                return self._fail(operation, "auth_error", started)
+            except groq.APIStatusError as exc:
+                code = _error_code(exc)
+                if code == "json_validate_failed":
+                    if index + 1 < len(attempts):
+                        self._log(operation, "retry_json_object", None, code)
+                        continue
+                    return self._fail(operation, "invalid_output", started, code)
+                return self._fail(operation, "provider_error", started, code)
+            except (groq.APIConnectionError, groq.APIError):
+                return self._fail(operation, "provider_error", started)
 
         latency = int((time.perf_counter() - started) * 1000)
         try:
@@ -155,12 +182,12 @@ class GroqService:
         self._log(operation, "ok", latency)
         return LLMOutcome(status="ok", data=data, model=model, latency_ms=latency)
 
-    def _fail(self, operation: str, status: LLMStatus, started: float) -> LLMOutcome[Any]:
+    def _fail(self, operation: str, status: LLMStatus, started: float, code: str | None = None) -> LLMOutcome[Any]:
         latency = int((time.perf_counter() - started) * 1000)
-        self._log(operation, status, latency)
+        self._log(operation, status, latency, code)
         return LLMOutcome(status=status, model=self.settings.groq_model, latency_ms=latency)
 
-    def _log(self, operation: str, status: str, latency: int | None) -> None:
+    def _log(self, operation: str, status: str, latency: int | None, provider_code: str | None = None) -> None:
         # Metadata only: never the prompt, the user content, or the response body.
         log_fields(
             logger,
@@ -170,7 +197,16 @@ class GroqService:
             status=status,
             latency_ms=latency,
             model=self.settings.groq_model,
+            provider_code=provider_code,
         )
+
+
+def _error_code(exc: groq.APIStatusError) -> str | None:
+    """Extracts the provider's machine-readable error code (never the message, which may echo content)."""
+    body = exc.body if isinstance(exc.body, dict) else {}
+    error = body.get("error", body)
+    code = error.get("code") if isinstance(error, dict) else None
+    return str(code)[:64] if code else None
 
 
 _service: GroqService | None = None

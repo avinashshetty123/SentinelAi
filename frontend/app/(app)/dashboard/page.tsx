@@ -91,7 +91,7 @@ export default function DashboardPage() {
         </Notice>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         <Stat label="Total scans" value={s?.total_scans} icon={ScanSearch} tone="text-accent" />
         <Stat label="High + critical scans" value={s?.high_risk_scans} icon={ShieldAlert} tone="text-risk-high" />
         <Stat label="Critical scans" value={s?.critical_scans} icon={AlertOctagon} tone="text-rose-400" />
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <RiskBadge level={scan.risk_level} />
-                        <span className="text-xs text-muted">{humanize(scan.kind)} · {humanize(scan.content_type)}</span>
+                        <span className="text-xs text-muted">{scan.kind === "url" ? "URL" : `Message · ${humanize(scan.content_type)}`}</span>
                         <SourceBadge source={scan.source} />
                       </div>
                       <p className="line-clamp-2 text-xs text-muted">{scan.target_display ?? scan.summary}</p>

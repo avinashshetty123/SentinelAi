@@ -151,3 +151,46 @@ async def test_incident_summary_schema() -> None:
     outcome = await GroqService(settings(), client).summarize_incident({"title": "x"})
     assert outcome.ok
     assert completions.kwargs["response_format"]["json_schema"]["name"] == "incident_summary"
+
+
+class FlakyCompletions:
+    """First call fails with Groq's json_validate_failed, second returns valid JSON."""
+
+    def __init__(self, second: Any) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.second = second
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            raise groq.BadRequestError("bad", response=httpx.Response(400, request=_REQ),
+                                       body={"error": {"code": "json_validate_failed", "message": "x"}})
+        if isinstance(self.second, BaseException):
+            raise self.second
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(self.second)))])
+
+
+async def test_json_validate_failed_retries_once_in_json_object_mode() -> None:
+    completions = FlakyCompletions(VALID)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    outcome = await GroqService(settings(), client).analyze_message("share the OTP", "sms", [])
+    assert outcome.ok
+    assert len(completions.calls) == 2
+    assert completions.calls[1]["response_format"] == {"type": "json_object"}
+    assert "JSON Schema" in completions.calls[1]["messages"][0]["content"]
+
+
+async def test_json_validate_failed_twice_is_invalid_output() -> None:
+    err = groq.BadRequestError("bad", response=httpx.Response(400, request=_REQ),
+                               body={"error": {"code": "json_validate_failed"}})
+    completions = FlakyCompletions(err)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    outcome = await GroqService(settings(), client).analyze_message("t", "sms", [])
+    assert outcome.status == "invalid_output" and len(completions.calls) == 2
+
+
+async def test_fallback_output_still_schema_validated() -> None:
+    completions = FlakyCompletions({"summary": "only this"})
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    outcome = await GroqService(settings(), client).analyze_message("t", "sms", [])
+    assert outcome.status == "invalid_output"

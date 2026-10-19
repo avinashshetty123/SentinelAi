@@ -55,7 +55,7 @@ test.describe("core workflows", () => {
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Status INVESTIGATING → RESOLVED").or(page.getByText("Status OPEN → RESOLVED"))).toBeVisible();
 
-    await page.getByText(/audit trail/i).click();
+    await page.locator("summary", { hasText: "Audit trail" }).click();
     await expect(page.getByText("incident.created")).toBeVisible();
     await expect(page.getByText("incident.note_added")).toBeVisible();
   });

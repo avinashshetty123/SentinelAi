@@ -60,7 +60,7 @@ function ScanDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
       <div>
         <h3 className="mb-2 text-xs font-medium text-muted">Findings</h3>
         <ul className="flex flex-col gap-2">
-          {scan.findings.filter((f) => f.points > 0 || f.source === "llm").map((f) => (
+          {scan.findings.filter((f) => f.weight > 0 || f.source === "llm").map((f) => (
             <li key={f.rule_id} className="rounded-md border border-border bg-surface-2 p-3 text-xs">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <span className="font-medium text-fg">{f.title}</span>
@@ -185,7 +185,7 @@ function HistoryView() {
                     <td className="px-4 py-3 tabular-nums">{scan.risk_score}</td>
                     <td className="px-4 py-3 text-xs text-muted">
                       <div className="flex flex-col gap-1">
-                        <span>{humanize(scan.kind)} · {humanize(scan.content_type)}</span>
+                        <span>{scan.kind === "url" ? "URL" : `Message · ${humanize(scan.content_type)}`}</span>
                         <SourceBadge source={scan.source} />
                       </div>
                     </td>
