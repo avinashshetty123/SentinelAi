@@ -1,0 +1,33 @@
+[project]
+name = "sentinelai-backend"
+version = "1.0.0"
+description = "SentinelAI FastAPI backend: explainable scam, URL and security-event analysis"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM"]
+ignore = ["S101", "B008", "RUF012", "S311", "RUF001", "RUF002", "UP046"]  # RUF001/2: lookalike chars are intentional detection data
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "E501", "ASYNC109", "SIM117"]
+"ml/*" = ["S"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+exclude = ["alembic/", "ml/", "tests/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:tldextract.*"]

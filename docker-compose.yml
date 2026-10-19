@@ -1,0 +1,56 @@
+# Local full stack: PostgreSQL + FastAPI + Next.js
+#   docker compose up --build
+# Secrets (e.g. GROQ_API_KEY) are read from backend/.env, which is git-ignored.
+name: sentinelai
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+      POSTGRES_DB: sentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides for the in-network service hostnames.
+      DATABASE_URL: postgresql+asyncpg://sentinel:sentinel@db:5432/sentinel
+      APP_ENV: development
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      RUN_MIGRATIONS_ON_START: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # The browser (on your machine) calls the API through the published port.
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

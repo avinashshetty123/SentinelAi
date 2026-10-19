@@ -1,0 +1,72 @@
+{
+  "model_version": "sms-tfidf-lr-1.0",
+  "trained_at": "2026-10-19T04:37:10+00:00",
+  "dataset": {
+    "name": "UCI SMS Spam Collection",
+    "url": "https://archive.ics.uci.edu/dataset/228/sms+spam+collection",
+    "license": "CC BY 4.0",
+    "sha256": "7d039a24a6083ed9ef0f806ebad56bbb976e3aeb8de05669173bfdc4996c239d",
+    "raw_class_counts": {
+      "ham": 4827,
+      "spam": 747
+    },
+    "after_dedup_class_counts": {
+      "ham": 4517,
+      "spam": 642
+    },
+    "conflicting_label_texts_removed": 0
+  },
+  "split": {
+    "method": "stratified random split after de-duplication",
+    "seed": 42,
+    "test_size": 0.2,
+    "train_size": 4127,
+    "test_size_rows": 1032,
+    "train_class_counts": {
+      "ham": 3613,
+      "spam": 514
+    },
+    "test_class_counts": {
+      "ham": 904,
+      "spam": 128
+    }
+  },
+  "config": {
+    "vectorizer": {
+      "lowercase": true,
+      "token_pattern": "(?u)\\b\\w\\w+\\b",
+      "ngram_range": [
+        1,
+        2
+      ],
+      "min_df": 2,
+      "max_df": 0.95,
+      "sublinear_tf": true,
+      "norm": "l2",
+      "smooth_idf": true,
+      "max_features": 15000
+    },
+    "logistic_regression": {
+      "C": 4.0,
+      "class_weight": "balanced",
+      "max_iter": 2000,
+      "solver": "liblinear"
+    },
+    "decision_threshold": 0.5,
+    "sklearn_version": "1.7.2"
+  },
+  "test_metrics": {
+    "precision_spam": 0.938,
+    "recall_spam": 0.9453,
+    "f1_spam": 0.9416,
+    "roc_auc": 0.9969,
+    "false_positive_rate": 0.0088,
+    "accuracy": 0.9855,
+    "confusion_matrix": {
+      "tn": 896,
+      "fp": 8,
+      "fn": 7,
+      "tp": 121
+    }
+  }
+}

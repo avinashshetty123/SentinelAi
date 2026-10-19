@@ -1,0 +1,12 @@
+# Runtime dependencies (pinned for reproducible deploys)
+fastapi==0.120.0
+uvicorn[standard]==0.38.0
+pydantic==2.12.3
+pydantic-settings==2.11.0
+sqlalchemy[asyncio]==2.0.44
+alembic==1.17.0
+asyncpg==0.30.0
+httpx==0.28.1
+groq==1.7.0
+tldextract==5.3.0
+idna==3.11
