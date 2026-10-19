@@ -2,7 +2,8 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# Match the npm major that generated package-lock.json (lockfile v3 resolution differs in npm 10).
+RUN npm install -g npm@11.5.2 --no-audit --no-fund && npm ci --no-audit --no-fund
 
 FROM node:22-alpine AS build
 WORKDIR /app

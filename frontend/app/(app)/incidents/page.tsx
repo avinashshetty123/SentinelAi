@@ -118,7 +118,7 @@ function IncidentPanel({ incident, onClose }: { incident: IncidentDetail; onClos
       <Card className="bg-surface-2">
         <CardContent className="py-4">
           <IncidentStatusForm
-            key={`${incident.status}-${incident.severity}-${incident.updated_at}`}
+            key={`${incident.id}-${incident.status}-${incident.severity}-${incident.resolution_notes ?? ""}`}
             initial={incident}
             pending={update.isPending}
             onSubmit={(v) => update.mutate({
@@ -277,14 +277,14 @@ function IncidentsView() {
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="inc-f-status">Status</Label>
+                <Label htmlFor="inc-f-status">Filter by status</Label>
                 <Select id="inc-f-status" value={filters.status} onChange={(e) => update("status", e.target.value)}>
                   <option value="">All</option>
                   {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                 </Select>
               </div>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="inc-f-sev">Severity</Label>
+                <Label htmlFor="inc-f-sev">Filter by severity</Label>
                 <Select id="inc-f-sev" value={filters.severity} onChange={(e) => update("severity", e.target.value)}>
                   <option value="">All</option>
                   {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((s) => <option key={s} value={s}>{s}</option>)}
