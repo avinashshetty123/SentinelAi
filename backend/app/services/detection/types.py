@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 Severity = Literal["info", "low", "medium", "high"]
-FindingSource = Literal["rule", "url_analyzer", "classifier", "llm", "combination"]
+FindingSource = Literal["rule", "url_analyzer", "classifier", "llm", "combination", "reputation"]
 
 
 @dataclass
@@ -23,3 +23,5 @@ class Finding:
     match_count: int = 1
     points: float = 0.0
     corroborated_by: list[str] = field(default_factory=list)
+    # Character spans in the analyzed text that triggered this finding (for inline highlighting).
+    spans: list[tuple[int, int]] = field(default_factory=list)

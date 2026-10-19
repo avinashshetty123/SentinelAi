@@ -1,7 +1,9 @@
-"""Predefined, clearly synthetic attack-replay scenarios.
+"""Predefined attack-replay scenarios.
 
-All content is synthetic. URLs use reserved documentation names/addresses (RFC 2606 `.example`,
-RFC 5737 203.0.113.0/24) so they cannot point at real infrastructure, and they are never visited.
+Messages are written to trigger real detection rules — the same rules that fire on genuine scam
+messages. Links use RFC 2606 reserved names (.example) and RFC 5737 documentation addresses
+(203.0.113.0/24) so they can never resolve to real infrastructure and are never visited.
+Records are tagged DataSource.DEMO so they can be reset without touching application data.
 """
 
 from __future__ import annotations
@@ -43,19 +45,28 @@ SCENARIOS: dict[str, Scenario] = {
         Scenario(
             id="payment-scam",
             title="Fake invoice payment scam",
-            description="A synthetic SMS claims an unpaid invoice will trigger account suspension and pushes a "
-            "payment link on a raw IP address.",
-            expected_outcome="Message scored HIGH/CRITICAL, URL flagged, events broadcast, incident opened.",
-            incident_title="[DEMO] Invoice payment scam targeting synthetic-user-001",
+            description=(
+                "An SMS impersonates a billing department, invents an overdue invoice, threatens "
+                "account suspension within 24 hours, and pushes a payment link hosted on a raw IP "
+                "address with a non-standard port — a classic advance-fee / credential-harvest combo."
+            ),
+            expected_outcome=(
+                "Message scored HIGH/CRITICAL, URL flagged for raw-IP + unusual port, events broadcast, "
+                "incident opened."
+            ),
+            incident_title="[DEMO] Invoice payment scam — synthetic-user-001",
             steps=(
                 ScenarioStep(
                     kind="message_scan",
                     title="Analyze suspicious payment SMS",
                     content_type=ContentType.PAYMENT_REQUEST,
-                    text="[SYNTHETIC DEMO] URGENT: Your account will be suspended within 24 hours due to an "
-                    "unpaid invoice of Rs 4,999. Pay the clearance fee immediately at "
-                    "http://203.0.113.24:8080/secure-billing/verify and confirm your card details. "
-                    "Do not contact the bank, this is handled by our billing department only.",
+                    text=(
+                        "URGENT: Your account will be suspended within 24 hours due to an unpaid "
+                        "invoice of Rs 4,999. To avoid service interruption, pay the clearance fee "
+                        "immediately at http://203.0.113.24:8080/secure-billing/verify and confirm "
+                        "your card details and OTP. Do NOT contact your bank — this is handled "
+                        "exclusively by our billing department. Reply STOP to opt out."
+                    ),
                 ),
                 ScenarioStep(
                     kind="url_scan",
@@ -66,27 +77,41 @@ SCENARIOS: dict[str, Scenario] = {
                 ScenarioStep(
                     kind="note",
                     title="Add analyst triage note",
-                    description="Triage: synthetic target did not click. Block-list the IP in the demo "
-                    "environment and warn users about invoice-themed SMS.",
+                    description=(
+                        "Triage: raw IP 203.0.113.24 on port 8080 has no legitimate billing use. "
+                        "Payment pressure + OTP request + secrecy instruction = high-confidence "
+                        "advance-fee scam. Recommend block-listing the IP and issuing a user advisory."
+                    ),
                 ),
             ),
         ),
         Scenario(
             id="job-offer-scam",
-            title="Task-based job offer with joining fee",
-            description="A synthetic chat message offers easy remote income, moves the conversation to Telegram "
-            "and demands a refundable 'registration fee'.",
-            expected_outcome="Advance-fee combination detected; lookalike careers URL flagged; incident opened.",
-            incident_title="[DEMO] Advance-fee job scam",
+            title="Task-based job offer with advance fee",
+            description=(
+                "A WhatsApp-style message offers easy remote income for liking YouTube videos, "
+                "demands a 'refundable registration fee' via UPI, moves the conversation to Telegram "
+                "to avoid platform moderation, and links to a typosquatted careers domain."
+            ),
+            expected_outcome=(
+                "Advance-fee + secrecy combination detected; lookalike careers URL flagged; incident opened."
+            ),
+            incident_title="[DEMO] Advance-fee job scam — synthetic-user-002",
             steps=(
                 ScenarioStep(
                     kind="message_scan",
                     title="Analyze job offer message",
                     content_type=ContentType.JOB_OFFER,
-                    text="[SYNTHETIC DEMO] Congratulations! You have been selected for a part-time job: like and "
-                    "subscribe to YouTube videos and earn Rs 3,000 per day. No experience needed. Pay a "
-                    "refundable registration fee of Rs 1,500 via UPI to activate your account. Contact us "
-                    "only on Telegram. Register at https://linkedln-careers.example/onboarding/verify",
+                    text=(
+                        "Congratulations! You have been selected for a flexible part-time opportunity: "
+                        "complete simple tasks (like and subscribe to YouTube videos) and earn "
+                        "Rs 3,000–5,000 per day from home. No experience required. "
+                        "To activate your account, pay a fully refundable registration fee of "
+                        "Rs 1,500 via UPI to tasks.pay@upi. Do not discuss this offer with anyone "
+                        "until your account is verified — contact your assigned manager only on "
+                        "Telegram @taskmanager99. Register now: "
+                        "https://linkedln-careers.example/onboarding/verify"
+                    ),
                 ),
                 ScenarioStep(
                     kind="url_scan",
@@ -94,24 +119,45 @@ SCENARIOS: dict[str, Scenario] = {
                     url="https://linkedln-careers.example/onboarding/verify",
                 ),
                 ScenarioStep(kind="create_incident", title="Open incident and link evidence"),
+                ScenarioStep(
+                    kind="note",
+                    title="Add analyst triage note",
+                    description=(
+                        "Triage: 'linkedln-careers.example' is a typosquat of linkedin.com. "
+                        "Advance fee + secrecy instruction + off-platform redirect = textbook "
+                        "task-scam pattern. No legitimate employer charges a registration fee."
+                    ),
+                ),
             ),
         ),
         Scenario(
             id="account-takeover",
             title="Phishing-led account takeover",
-            description="A synthetic password-reset phishing SMS is followed by simulated failed logins, a login "
-            "from a new location, and an account-takeover warning.",
-            expected_outcome="Phishing SMS flagged; three simulation events broadcast; incident opened with a "
-            "complete timeline.",
-            incident_title="[DEMO] Suspected account takeover of synthetic-user-007",
+            description=(
+                "A password-reset SMS impersonates Microsoft Security, embeds a brand-in-subdomain "
+                "phishing URL, and requests the victim's OTP. The pipeline then simulates the "
+                "resulting failed-login burst, a suspicious successful login from a new device, "
+                "and an account-takeover warning — showing the full attack chain from initial "
+                "phishing message to post-compromise detection."
+            ),
+            expected_outcome=(
+                "Phishing SMS flagged CRITICAL; three correlated security events broadcast live; "
+                "incident opened with complete attack-chain timeline."
+            ),
+            incident_title="[DEMO] Phishing-led account takeover — synthetic-user-007",
             steps=(
                 ScenarioStep(
                     kind="message_scan",
-                    title="Analyze password-reset SMS",
+                    title="Analyze phishing password-reset SMS",
                     content_type=ContentType.ACCOUNT_VERIFICATION,
-                    text="[SYNTHETIC DEMO] Microsoft Security Team: unusual sign-in detected. Your account will be "
-                    "locked today. Verify your account at http://microsoft.com.account-security.example/login "
-                    "and reply with the verification code we just sent you.",
+                    text=(
+                        "Microsoft Security Alert: We detected an unusual sign-in attempt on your "
+                        "account from a new device in Chennai, India. Your account will be locked "
+                        "in 2 hours if you do not verify your identity. "
+                        "Verify now: http://microsoft.com.account-security.example/login "
+                        "Enter the 6-digit verification code we just sent to your registered "
+                        "mobile number. Do not share this code with anyone, including Microsoft support."
+                    ),
                 ),
                 ScenarioStep(
                     kind="sim_event",
@@ -119,8 +165,10 @@ SCENARIOS: dict[str, Scenario] = {
                     event_type=EventType.FAILED_LOGIN_BURST,
                     severity=RiskLevel.MEDIUM,
                     actor="synthetic-user-007",
-                    description="[SIMULATED] 14 failed sign-in attempts in 3 minutes for synthetic-user-007 "
-                    "from 203.0.113.77.",
+                    description=(
+                        "14 failed sign-in attempts in 3 minutes for synthetic-user-007 "
+                        "from 203.0.113.77 — consistent with credential-stuffing after phishing."
+                    ),
                 ),
                 ScenarioStep(
                     kind="sim_event",
@@ -128,8 +176,10 @@ SCENARIOS: dict[str, Scenario] = {
                     event_type=EventType.SUSPICIOUS_LOGIN,
                     severity=RiskLevel.HIGH,
                     actor="synthetic-user-007",
-                    description="[SIMULATED] Successful sign-in for synthetic-user-007 from a new device "
-                    "and location immediately after the failed-login burst.",
+                    description=(
+                        "Successful sign-in for synthetic-user-007 from an unrecognized device "
+                        "and location immediately following the failed-login burst."
+                    ),
                 ),
                 ScenarioStep(
                     kind="sim_event",
@@ -137,10 +187,22 @@ SCENARIOS: dict[str, Scenario] = {
                     event_type=EventType.ACCOUNT_TAKEOVER_WARNING,
                     severity=RiskLevel.CRITICAL,
                     actor="synthetic-user-007",
-                    description="[SIMULATED] Possible account takeover: recovery e-mail change requested "
-                    "minutes after a suspicious login.",
+                    description=(
+                        "Possible account takeover: recovery e-mail change requested within "
+                        "4 minutes of the suspicious login for synthetic-user-007."
+                    ),
                 ),
-                ScenarioStep(kind="create_incident", title="Open incident and link evidence"),
+                ScenarioStep(kind="create_incident", title="Open incident and link full attack chain"),
+                ScenarioStep(
+                    kind="note",
+                    title="Add analyst triage note",
+                    description=(
+                        "Triage: brand-in-subdomain URL (microsoft.com.account-security.example) "
+                        "is a classic phishing pattern. Correlated events confirm the victim "
+                        "likely clicked. Recommend immediate password reset, session revocation "
+                        "and MFA enforcement."
+                    ),
+                ),
             ),
         ),
     )

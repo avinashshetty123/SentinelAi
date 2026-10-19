@@ -62,6 +62,10 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
     input_length: 120,
     related_event_id: "aaaaaaaa-0000-0000-0000-000000000000",
     related_incident_id: null,
+    persisted: true,
+    analyzed_text: null,
+    highlights: [],
+    url_reputations: [],
     ...overrides,
   };
 }

@@ -336,6 +336,48 @@ RULES: tuple[Rule, ...] = (
     ),
 )
 
+# Metadata for the combination rules implemented in combination_findings() (shown in the UI rule catalogue).
+COMBINATION_RULES: list[dict[str, object]] = [
+    {
+        "rule_id": "COMBO_CREDENTIAL_URGENCY",
+        "title": "Credential request under time pressure",
+        "weight": 12,
+        "explanation": "credential_request + urgency",
+    },
+    {
+        "rule_id": "COMBO_LINK_CREDENTIAL",
+        "title": "Link combined with a credential/verification request",
+        "weight": 12,
+        "explanation": "credential_request + link (8 if the link itself looks clean)",
+    },
+    {
+        "rule_id": "COMBO_PAYMENT_URGENCY",
+        "title": "Payment demand under time pressure",
+        "weight": 8,
+        "explanation": "payment_request + urgency",
+    },
+    {
+        "rule_id": "COMBO_IMPERSONATION_REQUEST",
+        "title": "Claimed authority/brand asking for sensitive action",
+        "weight": 10,
+        "explanation": "impersonation + credential/payment/personal-info request",
+    },
+    {
+        "rule_id": "COMBO_ADVANCE_FEE",
+        "title": "Reward or job that requires paying first",
+        "weight": 14,
+        "explanation": "reward_lure or job_scam + payment_request",
+    },
+    {
+        "rule_id": "COMBO_REMOTE_ACCESS_SUPPORT",
+        "title": "Remote access combined with support or payment pretext",
+        "weight": 12,
+        "explanation": "remote_access + credential/payment/impersonation",
+    },
+]
+for _c in COMBINATION_RULES:
+    _c.update(category="combination", severity="high")
+
 _COMPILED: list[tuple[Rule, list[re.Pattern[str]]]] = [(r, r.compiled()) for r in RULES]
 
 
@@ -350,11 +392,14 @@ def run_message_rules(normalized: NormalizedText) -> list[Finding]:
     for rule, patterns in _COMPILED:
         first_span: tuple[int, int] | None = None
         count = 0
+        spans: list[tuple[int, int]] = []
         for pattern in patterns:
             for match in pattern.finditer(text):
                 if rule.negation_guard and _negated(text, match.start()):
                     continue
                 count += 1
+                if len(spans) < 10:
+                    spans.append(match.span())
                 if first_span is None:
                     first_span = match.span()
         if first_span is None:
@@ -370,6 +415,7 @@ def run_message_rules(normalized: NormalizedText) -> list[Finding]:
                 explanation=rule.explanation,
                 evidence=excerpt(text, *first_span),
                 match_count=count,
+                spans=spans,
             )
         )
 

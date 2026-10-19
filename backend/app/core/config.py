@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     groq_reasoning_effort: Literal["low", "medium", "high"] = "low"
     groq_requests_per_minute: int = Field(default=20, ge=1, le=1000)
 
+    # --- VirusTotal reputation ---
+    virustotal_api_key: SecretStr | None = None
+    virustotal_enabled: bool = True
+    virustotal_timeout_seconds: float = Field(default=8.0, gt=0, le=30)
+
     # --- HTTP / security ---
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     cors_origin_regex: str | None = None
@@ -103,7 +108,7 @@ class Settings(BaseSettings):
             value = re.sub(r"([?&])sslmode=", r"\1ssl=", value)
         return value
 
-    @field_validator("groq_api_key", "admin_api_token", mode="before")
+    @field_validator("groq_api_key", "admin_api_token", "virustotal_api_key", mode="before")
     @classmethod
     def _empty_secret_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

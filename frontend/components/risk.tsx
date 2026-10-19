@@ -77,10 +77,10 @@ export function SeverityDot({ level }: { level: RiskLevel }) {
 }
 
 export function SourceIcon({ source }: { source: string }) {
-  const label = { rule: "Rule", url_analyzer: "URL check", classifier: "ML model", llm: "AI (Groq)", combination: "Combination" }[
+  const label = { rule: "Rule", url_analyzer: "URL check", classifier: "ML model", llm: "AI (Groq)", combination: "Combination", reputation: "VirusTotal" }[
     source
   ] ?? source;
-  const tone: BadgeTone = source === "llm" ? "accent" : source === "classifier" ? "medium" : "neutral";
+  const tone: BadgeTone = source === "llm" ? "accent" : source === "classifier" ? "medium" : source === "reputation" ? "critical" : "neutral";
   return (
     <Badge tone={tone}>
       {source === "llm" ? <ShieldAlert aria-hidden /> : null}

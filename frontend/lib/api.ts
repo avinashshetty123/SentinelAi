@@ -6,6 +6,8 @@ import type {
   DashboardActivity,
   DashboardSummary,
   DemoRun,
+  EmailHeaderResult,
+  RuleCatalogue,
   EventStatus,
   IncidentDetail,
   IncidentNote,
@@ -125,14 +127,16 @@ export const api = {
       method: "POST",
     }),
 
-  scanMessage: (body: { text: string; content_type: ContentType; use_llm: boolean }) =>
+  scanMessage: (body: { text: string; content_type: ContentType; use_llm: boolean; persist?: boolean }) =>
     request<ScanResult>("/scans/message", { method: "POST", body }),
-  scanUrl: (body: { url: string; use_llm: boolean }) => request<ScanResult>("/scans/url", { method: "POST", body }),
+  scanUrl: (body: { url: string; use_llm: boolean; persist?: boolean; check_reputation?: boolean }) => request<ScanResult>("/scans/url", { method: "POST", body }),
   listScans: (query: { page?: number; page_size?: number; kind?: string; risk_level?: string; source?: string }) =>
     request<Page<ScanSummary>>("/scans", { query }),
   getScan: (id: string) => request<ScanDetail>(`/scans/${id}`),
   deleteScan: (id: string) => request<void>(`/scans/${id}`, { method: "DELETE" }),
 
+  emailHeaders: (headers: string) => request<EmailHeaderResult>("/tools/email-headers", { method: "POST", body: { headers } }),
+  rules: () => request<RuleCatalogue>("/system/rules"),
   dashboardSummary: () => request<DashboardSummary>("/dashboard/summary"),
   dashboardActivity: (range: "24h" | "7d") => request<DashboardActivity>("/dashboard/activity", { query: { range } }),
 

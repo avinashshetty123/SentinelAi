@@ -39,6 +39,11 @@ CATEGORY_CAPS: dict[str, int] = {
     "classifier": 12,
     "llm": 10,
     "combination": 30,
+    "reputation": 40,  # external threat intelligence (VirusTotal)
+    # e-mail header categories
+    "authentication": 40,
+    "sender_mismatch": 35,
+    "relay": 10,
     # URL-scan categories
     "transport": 10,
     "deception": 40,
@@ -113,7 +118,7 @@ def deduplicate(findings: list[Finding]) -> list[Finding]:
 def _evidence_strength(findings: list[Finding], score: int) -> EvidenceStrength:
     if score == 0:
         return "none"
-    deterministic = [f for f in findings if f.source in ("rule", "url_analyzer") and f.points > 0]
+    deterministic = [f for f in findings if f.source in ("rule", "url_analyzer", "reputation") and f.points > 0]
     categories = {f.category for f in deterministic}
     high = any(f.severity == "high" for f in deterministic)
     if len(categories) >= 4 or (len(categories) >= 2 and high):

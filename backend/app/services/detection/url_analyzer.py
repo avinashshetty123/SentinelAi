@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 import re
 from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 import idna
@@ -76,6 +77,7 @@ class UrlAnalysis:
     is_ip: bool
     is_official_brand_domain: bool
     findings: list[Finding] = field(default_factory=list)
+    parts: list[dict[str, Any]] = field(default_factory=list)
 
 
 def levenshtein(a: str, b: str) -> int:
@@ -634,7 +636,9 @@ def analyze_url(raw: str, max_length: int = 2048) -> UrlAnalysis:
     if parts.query:
         normalized += f"?{parts.query}"
 
+    url_parts = _build_parts(scheme, userinfo, subdomain, domain_label, suffix, host, is_ip, port, parts, findings)
     return UrlAnalysis(
+        parts=url_parts,
         input_length=len(raw),
         normalized_url=normalized,
         display_target=f"{scheme}://{display_host}{port_part}",
@@ -650,3 +654,76 @@ def analyze_url(raw: str, max_length: int = 2048) -> UrlAnalysis:
         is_official_brand_domain=is_official,
         findings=findings,
     )
+
+
+# Which URL segment each rule is about (for the "URL X-ray" view).
+_FLAG_TARGET = {
+    "URL_NO_TLS": "scheme",
+    "URL_USERINFO": "userinfo",
+    "URL_IP_HOST": "host",
+    "URL_OBFUSCATED_IP": "host",
+    "URL_INTERNAL_HOST": "host",
+    "URL_ENCODED_HOST": "domain",
+    "URL_SUBDOMAIN_DEPTH": "subdomain",
+    "URL_BRAND_IN_SUBDOMAIN": "subdomain",
+    "URL_LOOKALIKE": "domain",
+    "URL_BRAND_IN_DOMAIN": "domain",
+    "URL_PUNYCODE": "domain",
+    "URL_MIXED_SCRIPT": "domain",
+    "URL_OFFICIAL_DOMAIN": "domain",
+    "URL_SHORTENER": "domain",
+    "URL_ABUSED_TLD": "suffix",
+    "URL_RESERVED_TLD": "suffix",
+    "URL_NO_PUBLIC_SUFFIX": "domain",
+    "URL_NONSTANDARD_PORT": "port",
+    "URL_EXECUTABLE": "path",
+    "URL_ENCODING_ANOMALY": "path",
+    "URL_SENSITIVE_KEYWORDS": "path",
+    "URL_LONG": "path",
+    "URL_EMBEDDED_URL": "query",
+}
+
+
+def _build_parts(
+    scheme: str,
+    userinfo: str,
+    subdomain: str,
+    domain_label: str,
+    suffix: str,
+    host: str,
+    is_ip: bool,
+    port: int | None,
+    split: Any,
+    findings: list[Finding],
+) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = [{"label": "scheme", "value": f"{scheme}://"}]
+    if userinfo:
+        parts.append({"label": "userinfo", "value": f"{userinfo}@"})
+    if is_ip or not domain_label:
+        parts.append({"label": "host", "value": host})
+    else:
+        if subdomain:
+            parts.append({"label": "subdomain", "value": f"{subdomain}."})
+        parts.append({"label": "domain", "value": domain_label})
+        if suffix:
+            parts.append({"label": "suffix", "value": f".{suffix}"})
+    if port is not None:
+        parts.append({"label": "port", "value": f":{port}"})
+    parts.append({"label": "path", "value": split.path or "/"})
+    if split.query:
+        parts.append({"label": "query", "value": f"?{split.query}"})
+    if split.fragment:
+        parts.append({"label": "fragment", "value": f"#{split.fragment}"})
+    labels = {p["label"] for p in parts}
+    for p in parts:
+        p["flags"] = []
+    for f in findings:
+        target = _FLAG_TARGET.get(f.rule_id)
+        if target is None:
+            continue
+        if target not in labels:
+            target = "host" if "host" in labels else "domain"
+        for p in parts:
+            if p["label"] == target and f.rule_id not in p["flags"]:
+                p["flags"].append(f.rule_id)
+    return parts

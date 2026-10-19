@@ -30,6 +30,10 @@ CATEGORY_LABELS = {
     "brand": "brand imitation",
     "redirection": "hidden or redirected destinations",
     "content": "sign-in, payment or download wording",
+    "reputation": "security-vendor detections on VirusTotal",
+    "authentication": "failed sender authentication (SPF/DKIM/DMARC)",
+    "sender_mismatch": "a sender identity that doesn't add up",
+    "relay": "an unusual delivery path",
 }
 
 RECOMMENDATIONS = {
@@ -56,6 +60,11 @@ RECOMMENDATIONS = {
     "transport": "Never enter passwords or payment details on pages without HTTPS.",
     "host": "Be cautious with links to raw IP addresses or unusual hosts.",
     "content": "Do not download files or sign in through this link.",
+    "reputation": "Security vendors have flagged this link. Do not open it, and warn others who received it.",
+    "authentication": "Treat the sender as unverified: contact the organisation through a channel you look up "
+    "yourself.",
+    "sender_mismatch": "Do not reply: replies or the real sender address point somewhere other than who it claims "
+    "to be.",
 }
 
 GENERIC_RECOMMENDATIONS = [
@@ -91,7 +100,7 @@ def _top_categories(findings: list[Finding], limit: int = 3) -> list[str]:
 
 
 def build_summary(kind: str, level: RiskLevel, score: int, findings: list[Finding]) -> str:
-    noun = "message" if kind == "message" else "URL"
+    noun = {"message": "message", "url": "URL", "email": "e-mail"}.get(kind, kind)
     cats = _top_categories(findings)
     if not cats:
         if score == 0:

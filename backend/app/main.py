@@ -22,6 +22,7 @@ from app.services.demo.runner import simulator
 from app.services.detection.classifier import load_classifier
 from app.services.events.service import on_rate_limited
 from app.services.llm.groq_service import get_groq_service
+from app.services.reputation.provider import init_reputation_provider
 from app.services.retention import retention_loop
 
 logger = logging.getLogger("sentinel")
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_engine(settings)
     if settings.classifier_enabled:
         load_classifier(settings.classifier_path)
+    init_reputation_provider()
     set_rate_limit_hook(on_rate_limited)
     retention_task = asyncio.create_task(retention_loop()) if settings.app_env != "test" else None
     log_fields(

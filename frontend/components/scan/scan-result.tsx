@@ -1,5 +1,8 @@
 import {
   Bot,
+  Globe,
+  Highlighter,
+  ScanLine,
   CheckCircle2,
   ClipboardList,
   ExternalLink,
@@ -13,6 +16,7 @@ import {
 import Link from "next/link";
 
 import { RiskBadge, RiskScore, SourceBadge, SourceIcon } from "@/components/risk";
+import { HighlightedText, ReputationCard, ThreatFingerprint, UrlXray } from "@/components/scan/visuals";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Notice } from "@/components/ui/states";
@@ -178,6 +182,57 @@ export function ScanResultView({ result }: { result: ScanResult }) {
 
       <AiExplanation llm={result.llm} summary={result.ai_summary} />
 
+      {result.analyzed_text && result.highlights.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Highlighter className="size-4 text-accent" aria-hidden /> Evidence map</CardTitle>
+            <CardDescription>Exactly which words triggered each indicator.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <HighlightedText text={result.analyzed_text} highlights={result.highlights} />
+          </CardContent>
+        </Card>
+      )}
+
+      {result.url_details && (
+        <div className="grid gap-5 lg:grid-cols-5">
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ScanLine className="size-4 text-accent" aria-hidden /> URL X-ray</CardTitle>
+              <CardDescription>The link taken apart — red parts are where the trick is.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UrlXray parts={result.url_details.parts} findings={result.findings} />
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Globe className="size-4 text-accent" aria-hidden /> Threat intelligence</CardTitle>
+              <CardDescription>VirusTotal: 90+ security vendors. Looked up by URL — never visited by us.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReputationCard reputation={result.url_details.reputation} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {result.url_reputations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Globe className="size-4 text-accent" aria-hidden /> Links in this message · VirusTotal</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-2">
+            {result.url_reputations.map((r) => (
+              <div key={r.url} className="flex flex-col gap-2">
+                <p className="font-mono text-xs break-all text-muted">{r.url}</p>
+                <ReputationCard reputation={r.reputation} compact />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
@@ -236,6 +291,18 @@ export function ScanResultView({ result }: { result: ScanResult }) {
               <ScoreBreakdown breakdown={result.score_breakdown} score={result.risk_score} />
             </CardContent>
           </Card>
+
+          {result.score_breakdown.filter((b) => b.category !== "combination").length >= 3 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Threat fingerprint</CardTitle>
+                <CardDescription>Share of each evidence category&apos;s cap that this input used.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ThreatFingerprint breakdown={result.score_breakdown} />
+              </CardContent>
+            </Card>
+          )}
 
           {result.url_details && (
             <Card>

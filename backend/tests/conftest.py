@@ -18,6 +18,8 @@ TEST_ENV = {
     "DATABASE_URL": os.environ.get("TEST_DATABASE_URL", f"sqlite+aiosqlite:///{(_TMP / 'test.db').as_posix()}"),
     "GROQ_API_KEY": "",
     "GROQ_ENABLED": "false",
+    "VIRUSTOTAL_API_KEY": "",
+    "VIRUSTOTAL_ENABLED": "false",
     "AUTH_MODE": "open",
     "ADMIN_API_TOKEN": "",
     "RATE_LIMIT_ENABLED": "false",

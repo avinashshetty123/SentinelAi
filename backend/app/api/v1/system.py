@@ -76,7 +76,7 @@ async def system_status(_: Principal = Depends(require_principal)) -> SystemStat
             test_metrics=clf.metrics_summary if clf else {},
             dataset=clf.dataset if clf else {},
         ),
-        reputation={"provider": reputation.name, "status": "not_configured" if reputation.name == "none" else "ok"},
+        reputation={"provider": reputation.name, "status": "active" if reputation.name != "none" else "not_configured"},
         websocket_clients=manager.client_count,
         auth_mode=settings.auth_mode,
         demo_mode=settings.demo_mode_enabled,

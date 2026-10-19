@@ -6,11 +6,12 @@ validate LLM output → score → explain → persist metadata → publish event
 
 from __future__ import annotations
 
+import asyncio
 import re
 import unicodedata
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,12 +24,16 @@ from app.schemas.event import EventCreate
 from app.schemas.scan import (
     ClassifierInfo,
     FindingOut,
+    Highlight,
     LLMInfo,
     MessageScanRequest,
     PrivacyInfo,
+    ReputationInfo,
     ScanResult,
     ScoreCategory,
     UrlDetails,
+    UrlPart,
+    UrlReputation,
     UrlScanRequest,
     Versions,
 )
@@ -42,6 +47,7 @@ from app.services.events.service import broadcast_event, create_event
 from app.services.incidents import create_incident_record, incident_created_side_effects
 from app.services.llm.groq_service import LLMOutcome, get_groq_service
 from app.services.llm.schemas import LLMAnalysis, SignalCategory
+from app.services.reputation.findings import reputation_findings
 from app.services.reputation.provider import get_reputation_provider
 from app.services.scoring.engine import (
     LLM_UNCORROBORATED_SIGNAL_WEIGHT,
@@ -106,9 +112,46 @@ class AnalysisContext:
 
 @dataclass
 class _Outcome:
-    scan: Scan
+    scan: Scan | None
     event: SecurityEvent | None
     incident: Incident | None
+    id: uuid.UUID
+    created_at: datetime
+
+
+MAX_MESSAGE_REPUTATION_LOOKUPS = 2  # protects the VirusTotal free-tier quota
+_QUOTE_CHARS = "\"'“”‘’…. "
+
+
+def _highlights(findings: list[Finding], text_length: int) -> list[Highlight]:
+    out: list[Highlight] = []
+    for f in findings:
+        for start, end in f.spans:
+            if 0 <= start < end <= text_length:
+                out.append(
+                    Highlight(
+                        start=start, end=end, rule_id=f.rule_id, title=f.title, category=f.category, source=f.source
+                    )
+                )
+    out.sort(key=lambda h: (h.start, -(h.end - h.start)))
+    return out[:80]
+
+
+def _find_spans(text: str, needle: str, limit: int = 5) -> list[tuple[int, int]]:
+    if not needle:
+        return []
+    hay, ndl = text.casefold(), needle.casefold()
+    if len(hay) != len(text) or len(ndl) != len(needle):  # casefold changed lengths; use exact search
+        hay, ndl = text, needle
+    spans: list[tuple[int, int]] = []
+    start = 0
+    while len(spans) < limit:
+        idx = hay.find(ndl, start)
+        if idx < 0:
+            break
+        spans.append((idx, idx + len(ndl)))
+        start = idx + len(ndl)
+    return spans
 
 
 def detect_content_type(text: str) -> ContentType:
@@ -195,6 +238,12 @@ def _apply_llm_signals(
     return accepted, len(accepted), discarded
 
 
+def _attach_llm_spans(findings: list[Finding], text: str) -> None:
+    for f in findings:
+        if f.source == "llm" and f.evidence and "[NUMBER]" not in f.evidence and "[EMAIL]" not in f.evidence:
+            f.spans = _find_spans(text, f.evidence.strip().strip(_QUOTE_CHARS), limit=2)
+
+
 def _llm_info(outcome: LLMOutcome[LLMAnalysis] | None, used: bool, accepted: int = 0, discarded: int = 0) -> LLMInfo:
     if outcome is None:
         return LLMInfo(status="skipped")
@@ -212,6 +261,7 @@ def _llm_info(outcome: LLMOutcome[LLMAnalysis] | None, used: bool, accepted: int
 async def _persist_and_publish(
     session: AsyncSession,
     *,
+    persist: bool = True,
     settings: Settings,
     ctx: AnalysisContext,
     kind: ScanKind,
@@ -229,6 +279,8 @@ async def _persist_and_publish(
     url_count: int,
     target_display: str | None,
 ) -> _Outcome:
+    if not persist:
+        return _Outcome(scan=None, event=None, incident=None, id=uuid.uuid4(), created_at=utcnow())
     scan = Scan(
         kind=kind,
         content_type=content_type,
@@ -336,7 +388,7 @@ async def _persist_and_publish(
         await broadcast_event(event)
     if incident is not None:
         await incident_created_side_effects(session, incident)
-    return _Outcome(scan=scan, event=event, incident=incident)
+    return _Outcome(scan=scan, event=event, incident=incident, id=scan.id, created_at=scan.created_at)
 
 
 async def analyze_message(
@@ -354,17 +406,33 @@ async def analyze_message(
     findings = run_message_rules(normalized)
 
     urls = extract_urls(normalized.text)
+    analyzed_urls = []
     for url in urls:
         try:
             ua = analyze_url(url, settings.max_url_chars)
         except UrlValidationError:
             continue
+        analyzed_urls.append(ua)
+        url_spans = _find_spans(normalized.text, url, limit=3)
         for f in ua.findings:
             if f.weight <= 0:
                 continue
             f.category = "url"
             f.evidence = f"{ua.display_target}: {f.evidence}" if f.evidence else ua.display_target
+            f.spans = url_spans
             findings.append(f)
+
+    # External reputation for embedded links (bounded number of lookups, run concurrently).
+    url_reputations: list[UrlReputation] = []
+    provider = get_reputation_provider()
+    if provider.name != "none" and analyzed_urls:
+        targets = analyzed_urls[:MAX_MESSAGE_REPUTATION_LOOKUPS]
+        reports = await asyncio.gather(*(provider.lookup(ua.normalized_url) for ua in targets))
+        for ua, info in zip(targets, reports, strict=True):
+            url_reputations.append(UrlReputation(url=ua.display_target, reputation=info))
+            for f in reputation_findings(info, ua.display_target):
+                f.spans = _find_spans(normalized.text, ua.host, limit=2)
+                findings.append(f)
     findings.extend(combination_findings(findings, len(urls)))
 
     # Classifier (bounded contribution)
@@ -410,6 +478,7 @@ async def analyze_message(
         outcome = await service.analyze_message(minimized, content_type.value, rule_context)
         if outcome.ok:
             llm_findings, accepted, discarded = _apply_llm_signals(outcome, minimized, findings)
+            _attach_llm_spans(llm_findings, normalized.text)
             findings.extend(llm_findings)
     else:
         outcome = LLMOutcome(status="skipped")
@@ -434,6 +503,7 @@ async def analyze_message(
 
     result = await _persist_and_publish(
         session,
+        persist=request.persist,
         settings=settings,
         ctx=ctx,
         kind=ScanKind.MESSAGE,
@@ -452,11 +522,11 @@ async def analyze_message(
         target_display=None,
     )
     return ScanResult(
-        id=result.scan.id,
+        id=result.id,
         kind=ScanKind.MESSAGE,
         content_type=content_type.value,
         source=ctx.source,
-        created_at=result.scan.created_at,
+        created_at=result.created_at,
         risk_score=score.score,
         risk_level=score.level,
         evidence_strength=score.evidence_strength,
@@ -478,6 +548,10 @@ async def analyze_message(
         input_length=normalized.original_length,
         related_event_id=result.event.id if result.event else None,
         related_incident_id=result.incident.id if result.incident else None,
+        persisted=request.persist,
+        analyzed_text=normalized.text,
+        highlights=_highlights(score.findings, len(normalized.text)),
+        url_reputations=url_reputations,
     )
 
 
@@ -491,8 +565,17 @@ async def analyze_url_scan(
     except UrlValidationError as exc:
         raise AppError(422, "invalid_url", str(exc)) from exc
 
-    score = score_findings(ua.findings, _thresholds(settings))
-    reputation = await get_reputation_provider().lookup(ua.normalized_url)
+    provider = get_reputation_provider()
+    if request.check_reputation:
+        reputation = await provider.lookup(ua.normalized_url)
+    else:
+        reputation = ReputationInfo(
+            status="skipped",
+            provider=None if provider.name == "none" else provider.name,
+            note="Reputation lookup was not requested for this scan.",
+        )
+    findings = [*ua.findings, *reputation_findings(reputation)]
+    score = score_findings(findings, _thresholds(settings))
 
     outcome: LLMOutcome[LLMAnalysis]
     if request.use_llm:
@@ -518,6 +601,7 @@ async def analyze_url_scan(
     clf = ClassifierInfo(status="not_applicable")
     result = await _persist_and_publish(
         session,
+        persist=request.persist,
         settings=settings,
         ctx=ctx,
         kind=ScanKind.URL,
@@ -536,11 +620,11 @@ async def analyze_url_scan(
         target_display=ua.display_target[:300],
     )
     return ScanResult(
-        id=result.scan.id,
+        id=result.id,
         kind=ScanKind.URL,
         content_type=ContentType.URL.value,
         source=ctx.source,
-        created_at=result.scan.created_at,
+        created_at=result.created_at,
         risk_score=score.score,
         risk_level=score.level,
         evidence_strength=score.evidence_strength,
@@ -565,10 +649,12 @@ async def analyze_url_scan(
             is_ip=ua.is_ip,
             is_official_brand_domain=ua.is_official_brand_domain,
             reputation=reputation,
+            parts=[UrlPart(**p) for p in ua.parts],
         ),
         versions=Versions(rule_version=URL_RULE_VERSION, scoring_version=SCORING_VERSION),
         privacy=PrivacyInfo(excerpts_stored=settings.store_finding_excerpts, sent_to_llm=sent),
         input_length=ua.input_length,
         related_event_id=result.event.id if result.event else None,
         related_incident_id=result.incident.id if result.incident else None,
+        persisted=request.persist,
     )

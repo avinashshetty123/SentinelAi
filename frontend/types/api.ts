@@ -86,9 +86,69 @@ export interface ClassifierInfo {
 }
 
 export interface ReputationInfo {
-  status: "not_configured" | "unavailable" | "ok";
+  status: "not_configured" | "unavailable" | "rate_limited" | "skipped" | "ok";
   provider: string | null;
   note: string;
+  verdict: "malicious" | "suspicious" | "clean" | "not_found" | "unknown";
+  stats: { malicious: number; suspicious: number; harmless: number; undetected: number; timeout: number } | null;
+  flagged_engines: { engine: string; category: string; result: string | null }[];
+  categories: string[];
+  community_score: number | null;
+  last_analysis_at: string | null;
+  report_url: string | null;
+  cached: boolean;
+}
+
+export interface UrlPart {
+  label: "scheme" | "userinfo" | "subdomain" | "domain" | "suffix" | "host" | "port" | "path" | "query" | "fragment";
+  value: string;
+  flags: string[];
+}
+
+export interface Highlight {
+  start: number;
+  end: number;
+  rule_id: string;
+  title: string;
+  category: string;
+  source: string;
+}
+
+export interface EmailHeaderResult {
+  risk_score: number;
+  risk_level: RiskLevel;
+  evidence_strength: string;
+  summary: string;
+  from_address: string | null;
+  from_display: string | null;
+  from_domain: string | null;
+  reply_to_domain: string | null;
+  return_path_domain: string | null;
+  subject: string | null;
+  auth: Record<string, string>;
+  hops: { from: string | null; by: string | null; ip: string | null }[];
+  findings: Finding[];
+  score_breakdown: ScoreCategory[];
+  recommendations: string[];
+  limitations: string[];
+}
+
+export interface RuleInfo {
+  rule_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  weight: number;
+  explanation: string;
+}
+
+export interface RuleCatalogue {
+  versions: Record<string, string>;
+  thresholds: Record<string, number>;
+  diminishing_factor: number;
+  category_caps: Record<string, number>;
+  message_rules: RuleInfo[];
+  combination_rules: RuleInfo[];
 }
 
 export interface UrlDetails {
@@ -104,6 +164,7 @@ export interface UrlDetails {
   is_ip: boolean;
   is_official_brand_domain: boolean;
   reputation: ReputationInfo;
+  parts: UrlPart[];
 }
 
 export interface ScanResult {
@@ -130,6 +191,10 @@ export interface ScanResult {
   input_length: number;
   related_event_id: string | null;
   related_incident_id: string | null;
+  persisted: boolean;
+  analyzed_text: string | null;
+  highlights: Highlight[];
+  url_reputations: { url: string; reputation: ReputationInfo }[];
 }
 
 export interface ScanSummary {

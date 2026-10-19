@@ -3,6 +3,10 @@
 import {
   Activity,
   Bell,
+  BookOpen,
+  GraduationCap,
+  Mail,
+  QrCode,
   ClipboardList,
   FileSearch,
   HeartPulse,
@@ -24,25 +28,32 @@ import { ConnectionStatus } from "@/components/shell/connection-status";
 import { cn } from "@/lib/utils";
 
 export const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analyze", label: "Message analyzer", icon: FileSearch },
-  { href: "/urls", label: "URL analyzer", icon: Link2 },
-  { href: "/history", label: "Scan history", icon: History },
-  { href: "/events", label: "Security events", icon: Bell },
-  { href: "/incidents", label: "Incidents", icon: ClipboardList },
-  { href: "/replay", label: "Attack replay", icon: PlayCircle },
-  { href: "/system-health", label: "System health", icon: HeartPulse },
-  { href: "/settings", label: "Settings & privacy", icon: Settings },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Analyze" },
+  { href: "/analyze", label: "Message analyzer", icon: FileSearch, group: "Analyze" },
+  { href: "/urls", label: "URL analyzer", icon: Link2, group: "Analyze" },
+  { href: "/qr", label: "QR scanner", icon: QrCode, group: "Analyze" },
+  { href: "/email", label: "E-mail forensics", icon: Mail, group: "Analyze" },
+  { href: "/events", label: "Security events", icon: Bell, group: "Respond" },
+  { href: "/incidents", label: "Incidents", icon: ClipboardList, group: "Respond" },
+  { href: "/history", label: "Scan history", icon: History, group: "Respond" },
+  { href: "/replay", label: "Attack replay", icon: PlayCircle, group: "Respond" },
+  { href: "/lab", label: "Scam Spotter", icon: GraduationCap, group: "Learn" },
+  { href: "/how-it-works", label: "How it works", icon: BookOpen, group: "Learn" },
+  { href: "/system-health", label: "System health", icon: HeartPulse, group: "System" },
+  { href: "/settings", label: "Settings & privacy", icon: Settings, group: "System" },
 ] as const;
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <ul className="flex flex-col gap-0.5">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {NAV_ITEMS.map(({ href, label, icon: Icon, group }, i) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <li key={href}>
+            {(i === 0 || NAV_ITEMS[i - 1].group !== group) && (
+              <p className="mt-3 mb-1 px-3 text-[10px] font-semibold tracking-widest text-subtle uppercase first:mt-0">{group}</p>
+            )}
             <Link
               href={href}
               onClick={onNavigate}

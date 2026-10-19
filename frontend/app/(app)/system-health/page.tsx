@@ -108,8 +108,13 @@ export default function SystemHealthPage() {
             SMS language, not modern scam coverage. See docs/ML_EVALUATION.md.
           </p>
         </Health>
-        <Health title="URL reputation" icon={Globe} tone="neutral" state={humanize(s.reputation.status)}>
-          <p className="text-xs text-muted">No reputation provider is configured. URL analysis is offline-only; reputation is reported as unknown.</p>
+        <Health title="URL reputation" icon={Globe} tone={s.reputation.status === "active" ? "low" : "neutral"}
+                state={s.reputation.status === "active" ? "VirusTotal active" : "Not configured"}>
+          {s.reputation.status === "active" ? (
+            <p className="text-xs text-muted">URL and message-link scans query VirusTotal (90+ vendors) by URL ID. Links are never opened; results are cached for 30 minutes to save the free quota (4 lookups/min).</p>
+          ) : (
+            <p className="text-xs text-muted">Set VIRUSTOTAL_API_KEY in backend/.env and restart the backend to enable vendor verdicts. Offline URL analysis works without it.</p>
+          )}
         </Health>
         <Health title="Security configuration" icon={Cpu} tone={s.auth_mode === "token" ? "low" : "medium"} state={s.auth_mode === "token" ? "Token auth" : "Open (demo)"}>
           <Row label="Rate limiting">{s.rate_limiting ? "Enabled" : "Disabled"}</Row>

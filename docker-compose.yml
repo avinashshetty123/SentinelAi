@@ -45,6 +45,7 @@ services:
       args:
         # The browser (on your machine) calls the API through the published port.
         NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000/api/v1/ws/events
     ports:
       - "3000:3000"
     depends_on:
